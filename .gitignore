@@ -1,19 +1,25 @@
 # Ignorar todo
 *
 
-# Permitir directorios para poder recorrerlos
+# Permitir recorrer directorios
 !*/
 
-# Mantener únicamente estas carpetas
-!scripts/
-!scripts/**
-
-!data/
-!data/**
-
-# Mantener estos archivos
+# Archivos de configuración
+!.gitignore
+!README.md
+!requirements.txt
 !Dockerfile
 !docker-compose.yml
 
-# Mantener el propio .gitignore
-!.gitignore
+# Código fuente
+!scripts/
+!scripts/**
+
+# Carpeta data
+!data/
+
+# Ignorar todo su contenido...
+data/*
+
+# ...excepto el CSV revisado
+!data/entity_merge_candidates_revisado.csv
