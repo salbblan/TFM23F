@@ -1,0 +1,19 @@
+# Ignorar todo
+*
+
+# Permitir directorios para poder recorrerlos
+!*/
+
+# Mantener únicamente estas carpetas
+!scripts/
+!scripts/**
+
+!data/
+!data/**
+
+# Mantener estos archivos
+!Dockerfile
+!docker-compose.yml
+
+# Mantener el propio .gitignore
+!.gitignore
