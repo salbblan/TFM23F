@@ -1,15 +1,15 @@
 """
-0_DescargarDatos.py — Descarga del corpus 23-F desde el buscador de RTVE
+0_DescargarDatos.py - Descarga del corpus 23-F desde el buscador de RTVE
 ─────────────────────────────────────────────────────────────────────
 Fuente  : https://23fbuscador.rtve.es/
 Método  : scraping con requests + BeautifulSoup
 Salida  : data/rtve_23f_corpus.json
 
 Uso:
-    python scripts/00_download.py
-    python scripts/00_download.py --page-size 25 --delay 1.0
-    python scripts/00_download.py --force          # re-descarga aunque ya exista
-    python scripts/00_download.py --output data/corpus.json
+    python scripts/0_DescargarDatos.py
+    python scripts/0_DescargarDatos.py --page-size 25 --delay 1.0
+    python scripts/0_DescargarDatos.py --force          # re-descarga aunque ya exista
+    python scripts/0_DescargarDatos.py --output data/corpus.json
 """
 
 import argparse
@@ -23,7 +23,7 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 
-# ── Configuración ──────────────────────────────────────────────────────────────
+# Configuración
 BASE_URL  = "https://23fbuscador.rtve.es"
 LIST_URL  = BASE_URL + "/"
 DOC_URL   = BASE_URL + "/document/ocr/{id}"
@@ -43,13 +43,11 @@ HEADERS = {
 }
 
 
-# ── Paso 1: recopilar todos los IDs desde las páginas de listado ───────────────
+# Paso 1: recopilar todos los IDs desde las páginas de listado
 
 def get_doc_ids(session: requests.Session, page_size: int) -> list[int]:
     """
-    Recorre todas las páginas del listado y devuelve la lista de IDs de documento.
-    Detecta el fin de paginación cuando la página viene vacía o igual a la anterior.
-    """
+    Recorre todas las páginas del listado y devuelve la lista de IDs de documento. Detecta el fin de paginación cuando la página viene vacía o igual a la anterior. """
     all_ids   = []
     seen_ids  = set()
     page      = 1
@@ -67,7 +65,7 @@ def get_doc_ids(session: requests.Session, page_size: int) -> list[int]:
         links = soup.select('a[href*="/document/ocr/"]')
 
         if not links:
-            print(f"  Página {page}: sin documentos → fin de paginación")
+            print(f"  Página {page}: sin documentos, fin de paginación")
             # Debug: mostrar algunos hrefs para diagnóstico
             sample = [a.get("href","") for a in soup.find_all("a", href=True)[:8]]
             print(f"  (hrefs de muestra: {sample})")
@@ -76,7 +74,7 @@ def get_doc_ids(session: requests.Session, page_size: int) -> list[int]:
         page_ids = []
         for a in links:
             href = a.get("href", "")
-            # Extraer el ID numérico con regex — robusto ante query params y trailing slashes
+            # Extraer el ID numérico
             m = re.search(r"/document/ocr/(\d+)", href)
             if not m:
                 continue
@@ -86,7 +84,7 @@ def get_doc_ids(session: requests.Session, page_size: int) -> list[int]:
                 seen_ids.add(doc_id)
 
         if not page_ids:
-            print(f"  Página {page}: sin IDs nuevos → fin de paginación")
+            print(f"  Página {page}: sin IDs nuevos, fin de paginación")
             break
 
         all_ids.extend(page_ids)
@@ -105,7 +103,7 @@ def get_doc_ids(session: requests.Session, page_size: int) -> list[int]:
     return all_ids
 
 
-# ── Paso 2: descargar cada documento ──────────────────────────────────────────
+# Paso 2: descargar cada documento
 
 def fetch_document(session: requests.Session, doc_id: int) -> dict | None:
     """
@@ -122,7 +120,7 @@ def fetch_document(session: requests.Session, doc_id: int) -> dict | None:
     resp = session.get(url, headers=HEADERS, timeout=TIMEOUT)
 
     if resp.status_code == 404:
-        print(f"    [{doc_id}] 404 — omitido")
+        print(f"    [{doc_id}] 404 - omitido")
         return None
     resp.raise_for_status()
 
@@ -170,7 +168,7 @@ def fetch_document(session: requests.Session, doc_id: int) -> dict | None:
     }
 
 
-# ── Programa principal ─────────────────────────────────────────────────────────
+# Programa principal
 
 def main():
     parser = argparse.ArgumentParser(
@@ -199,14 +197,14 @@ def main():
     out.parent.mkdir(parents=True, exist_ok=True)
     session = requests.Session()
 
-    # ── 1. Recopilar IDs ──────────────────────────────────────────────────────
+    # 1. Recopilar IDs
     doc_ids = get_doc_ids(session, args.page_size)
     if not doc_ids:
         print("No se encontraron documentos. Revisa la conexión o la URL.")
         sys.exit(1)
     print(f"\nTotal IDs recopilados: {len(doc_ids)}\n")
 
-    # ── 2. Descargar documentos ───────────────────────────────────────────────
+    # 2. Descargar documentos
     print("Descargando documentos individuales...")
     corpus   = []
     errors   = []
@@ -225,18 +223,18 @@ def main():
             errors.append(doc_id)
             time.sleep(args.delay * 2)   # espera más tras un error
 
-    # ── 3. Guardar ────────────────────────────────────────────────────────────
+    # 3. Guardar
     with open(out, "w", encoding="utf-8") as f:
         json.dump(corpus, f, ensure_ascii=False, indent=2)
 
-    # ── Resumen ───────────────────────────────────────────────────────────────
+    # Resumen
     print(f"\n{'─'*50}")
     print(f"{len(corpus)} documentos guardados en {out}")
     if errors:
         print(f"{len(errors)} errores: IDs {errors}")
     if corpus:
         lengths = [len(d["text"]) for d in corpus]
-        print(f"  Texto OCR — min: {min(lengths):,}  "
+        print(f"  Texto OCR: min: {min(lengths):,}  "
               f"max: {max(lengths):,}  "
               f"media: {sum(lengths)//len(lengths):,} chars")
 

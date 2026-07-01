@@ -1,5 +1,5 @@
 """
-6_ConstruirGrafo.py — Construcción del grafo de relaciones del 23-F
+6_ConstruirGrafo.py - Construcción del grafo de relaciones del 23-F
 ─────────────────────────────────────────────────────────────────────
 Entrada : data/relaciones_extraidas.csv      (de 5_ExtraerRelaciones.py)
           data/rtve_23f_corpus_final.json    (de 3_ValidarDatos.py)
@@ -24,19 +24,15 @@ Mapeo aplicado desde las relaciones detalladas de 5_ExtraerRelaciones.py:
     CONOCE         -> CONOCE     (sin cambio)
     PROPONE, SOLICITA, COLABORA, AUTORIZA, NIEGA -> sin cambio (se añaden tal cual)
  
-Además, se añade una arista MENCIONA desde cada nodo Documento hacia cada
-entidad que aparece en alguna relación extraída de ese documento — así los
-nodos Documento quedan conectados al grafo (trazabilidad: qué documento
-habla de qué persona/institución/lugar).
+Además, se añade una arista MENCIONA desde cada nodo Documento hacia cada entidad que aparece en alguna relación extraída de ese documento, Y también
+hacia todas las entidades etiquetadas en el corpus final (personas, lugares, keywords) aunque no tengan ninguna relación extraída - así ninguna entidad
+del corpus queda fuera del grafo por falta de patrón léxico en sus frases.
  
 Clasificación de entidades en Persona / Institución / Lugar:
-    1. Si el nombre contiene una palabra clave de institución (Consejo,
-       Tribunal, CESID, Guardia Civil, Ministerio, PSOE...) -> Institución.
+    1. Si el nombre contiene una palabra clave de institución (Consejo, Tribunal, CESID, Guardia Civil, Ministerio, PSOE...) -> Institución.
     2. Si no, y el nombre aparece en el campo 'lugares' del corpus -> Lugar.
-    3. En cualquier otro caso -> Persona (incluye los términos genéricos
-       no resueltos, que quedan como Persona por defecto).
+    3. En cualquier otro caso -> Persona (incluye los términos genéricos no resueltos, que quedan como Persona por defecto).
  
-No se usa el tipo Evento en esta versión (decisión acordada).
  
 Uso:
     python scripts/6_ConstruirGrafo.py
@@ -56,12 +52,12 @@ except ImportError:
     nx = None
  
 DEFAULT_RELACIONES = Path(__file__).resolve().parent.parent / "data" / "relaciones_extraidas.csv"
-DEFAULT_CORPUS     = Path(__file__).resolve().parent.parent / "data" / "rtve_23f_corpus_final.json"  # de 3_ValidarDatos.py — ya incluye entidades faltantes
+DEFAULT_CORPUS     = Path(__file__).resolve().parent.parent / "data" / "rtve_23f_corpus_final.json"  # de 3_ValidarDatos.py - ya incluye entidades faltantes
 DEFAULT_CSV_FUSION = Path(__file__).resolve().parent.parent / "data" / "entity_merge_candidates_revisado.csv"
 DEFAULT_GRAPHML    = Path(__file__).resolve().parent.parent / "data" / "grafo_23f.graphml"
 DEFAULT_JSON        = Path(__file__).resolve().parent.parent / "data" / "grafo_23f.json"
  
-# ── Mapeo de relaciones detalladas -> aristas del grafo ──────────────────────
+# Mapeo de relaciones detalladas, aristas del grafo
 MAPEO_RELACIONES = {
     "INFORMA_A": "INFORMA",
     "PERTENECE_A": "PERTENECE",
@@ -78,7 +74,7 @@ MAPEO_RELACIONES = {
     "NIEGA": "NIEGA",
 }
  
-# ── Palabras clave para detectar Instituciones ───────────────────────────────
+# Palabras clave para detectar Instituciones 
 PALABRAS_INSTITUCION = [
     "consejo", "tribunal", "cesid", "ejercito", "ejército", "gobierno",
     "psoe", "guardia civil", "ministerio", "junta", "partido", "iglesia",
@@ -95,10 +91,8 @@ PATRON_INSTITUCION = re.compile(
     re.IGNORECASE,
 )
  
-# Palabras de rango/cargo/partícula a ignorar al buscar si queda un nombre
-# propio distintivo tras quitar la parte institucional. Reutiliza la misma
-# idea que 2_RevisarCandidatos.py: si no queda nada relevante, es un
-# término puramente genérico/institucional; si queda algo, es una persona
+# Palabras de rango/cargo/partícula a ignorar al buscar si queda un nombre propio distintivo tras quitar la parte institucional. Reutiliza la misma
+# idea que 2_RevisarCandidatos.py: si no queda nada relevante, es un término puramente genérico/institucional; si queda algo, es una persona
 # concreta (p.ej. "Capitán De La Guardia Civil Muñecas" -> queda "Muñecas").
 PALABRAS_IGNORABLES = set(PALABRAS_INSTITUCION) | {
     "el", "la", "los", "las", "de", "del", "don", "dona", "doña", "sr", "sra",
@@ -114,10 +108,8 @@ PALABRAS_IGNORABLES = set(PALABRAS_INSTITUCION) | {
 }
 MIN_LEN_NOMBRE_PROPIO = 3
  
-# ── Corrección manual: personas reales que RTVE etiquetó por error SOLO en
-# el campo 'lugares' en algún documento (nunca como 'persona' en ninguno),
-# así que la priorización personas > lugares no las detecta por sí sola.
-# Se fuerza su tipo a Persona, con prioridad sobre cualquier otra regla.
+# Corrección manual: personas reales que RTVE etiquetó por error solo en el campo 'lugares' en algún documento (nunca como 'persona' en ninguno),
+# así que la priorización personas > lugares no las detecta por sí sola. Se fuerza su tipo a Persona, con prioridad sobre cualquier otra regla.
 # Encontradas mediante revisión manual de los nodos Lugar.
 PERSONAS_MAL_ETIQUETADAS_COMO_LUGAR = {
     "Coronel San Martin",
@@ -131,8 +123,7 @@ PERSONAS_MAL_ETIQUETADAS_COMO_LUGAR = {
  
  
 def queda_nombre_propio(nombre: str) -> bool:
-    """True si, tras quitar palabras de rango/institución/partículas, queda
-    alguna palabra (probable apellido o nombre propio de una persona)."""
+    """True si, tras quitar palabras de rango/institución/partículas, queda alguna palabra (probable apellido o nombre propio de una persona)."""
     n = nombre.lower()
     n = re.sub(r"\([^)]*\)", " ", n)
     n = re.sub(r"[^a-záéíóúñü\s]", " ", n)
@@ -140,10 +131,8 @@ def queda_nombre_propio(nombre: str) -> bool:
     return any(w not in PALABRAS_IGNORABLES for w in palabras)
  
  
-# ── Detección de términos genéricos a excluir del grafo (misma heurística
-# que 2_RevisarCandidatos.py: nombres que aparecen emparejados con MUCHAS
-# entidades distintas y heterogéneas entre sí — señal de que son cargos o
-# colectivos genéricos, no una persona/institución concreta) ────────────────
+# Detección de términos genéricos a excluir del grafo (misma heurística que 2_RevisarCandidatos.py: nombres que aparecen emparejados con muhcas
+# entidades distintas y heterogéneas entre sí - señal de que son cargos o colectivos genéricos, no una persona/institución concreta)
 STOPWORDS_GENERICOS = set("""
     el la los las de del don dona doña sr sra señor señora excmo excma ilmo ilma
     general teniente coronel capitan capitán comandante sargento cabo soldado
@@ -169,14 +158,12 @@ def _palabras_significativas_generico(nombre: str) -> set:
  
 def detectar_terminos_genericos_a_excluir(csv_fusion_path: Path) -> set:
     """
-    Reutiliza la heurística de 2_RevisarCandidatos.py: un nombre que aparece
-    emparejado con >= HUB_MIN_DEGREE entidades distintas, cuyos compañeros
-    son heterogéneos entre sí (poca similitud de palabras), es un término
-    genérico (cargo, colectivo...) y no representa una entidad concreta.
+    Reutiliza la heurística de 2_RevisarCandidatos.py: un nombre que aparece emparejado con >= HUB_MIN_DEGREE entidades distintas, cuyos compañeros
+    son heterogéneos entre sí (poca similitud de palabras), es un término genérico (cargo, colectivo...) y no representa una entidad concreta.
     Estos se EXCLUYEN del grafo final (no solo de la fusión).
     """
     if not csv_fusion_path.exists():
-        print(f"(Aviso: no se encontró {csv_fusion_path} — no se excluye ningún término genérico)")
+        print(f"(Aviso: no se encontró {csv_fusion_path} - no se excluye ningún término genérico)")
         return set()
  
     rows = list(csv.DictReader(open(csv_fusion_path, encoding="utf-8")))
@@ -207,8 +194,7 @@ def detectar_terminos_genericos_a_excluir(csv_fusion_path: Path) -> set:
  
  
 def cargar_categorias_corpus(corpus_path: Path):
-    """Devuelve (set_personas, set_lugares) con los nombres canónicos tal
-    como aparecen en los campos 'personas' y 'lugares' del corpus final."""
+    """Devuelve (set_personas, set_lugares) con los nombres canónicos tal como aparecen en los campos 'personas' y 'lugares' del corpus final."""
     with open(corpus_path, encoding="utf-8") as f:
         corpus = json.load(f)
     personas, lugares = set(), set()
@@ -219,31 +205,26 @@ def cargar_categorias_corpus(corpus_path: Path):
  
  
 def clasificar_entidad(nombre: str, personas: set, lugares: set) -> str:
-    # Corrección manual con prioridad máxima (ver PERSONAS_MAL_ETIQUETADAS_COMO_LUGAR)
+    # Corrección manual con prioridad máxima 
     if nombre in PERSONAS_MAL_ETIQUETADAS_COMO_LUGAR:
         return "Persona"
  
     coincide_institucion = bool(PATRON_INSTITUCION.search(nombre))
     if coincide_institucion:
-        # Si tras quitar la parte institucional/rango queda un apellido o
-        # nombre propio (p.ej. "Muñecas" en "Capitán De La Guardia Civil
+        # Si tras quitar la parte institucional/rango queda un apellido o nombre propio (p.ej. "Muñecas" en "Capitán De La Guardia Civil
         # Muñecas"), es una PERSONA con cargo, no una institución genérica.
         if not queda_nombre_propio(nombre):
             return "Institución"
         # Si queda nombre propio, cae al resto de comprobaciones (Persona/Lugar)
  
-    # IMPORTANTE: se comprueba 'personas' ANTES que 'lugares'. El propio
-    # etiquetado automático de RTVE mete a veces nombres de personas reales
-    # en el campo 'lugares' de algún documento por error (falso positivo de
-    # su NER) — p.ej. "Comandante Cortina" o "Teniente General Miláns Del
-    # Bosch" aparecían así. Si no priorizáramos 'personas', estas figuras
-    # acabarían mal clasificadas como Lugar en el grafo.
+    # IMPORTANTE: se comprueba 'personas' ANTES que 'lugares'. El propio etiquetado automático de RTVE mete a veces nombres de personas reales
+    # en el campo 'lugares' de algún documento por error (falso positivo de su NER) - p.ej. "Comandante Cortina" o "Teniente General Miláns Del
+    # Bosch" aparecían así. Si no priorizáramos 'personas', estas figuras acabarían mal clasificadas como Lugar en el grafo.
     if nombre in personas:
         return "Persona"
     if nombre in lugares:
         return "Lugar"
-    # 'Persona' por defecto, incluso si no aparece literalmente en ningún
-    # set (puede ser una variante ya fusionada a un canónico que sí está
+    # 'Persona' por defecto, incluso si no aparece literalmente en ningún set (puede ser una variante ya fusionada a un canónico que sí está
     # en el set, o un término genérico no resuelto).
     return "Persona"
  
@@ -260,7 +241,7 @@ def main():
         help="Excluye del grafo los nodos puramente genéricos (cargos/colectivos sin "
              "identidad concreta, p.ej. 'Capitán', 'Procesados', 'Tenientes'). "
              "Desactivado por defecto: la heurística automática es poco precisa para "
-             "esto (ver discusión en el chat) — se recomienda una lista manual curada "
+             "esto (ver discusión en el chat) - se recomienda una lista manual curada "
              "en su lugar, si se quiere retomar esta exclusión.",
     )
     parser.add_argument(
@@ -270,9 +251,9 @@ def main():
     args = parser.parse_args()
  
     if not args.relaciones.exists():
-        raise SystemExit(f"No se encontró: {args.relaciones} — ejecuta antes 5_ExtraerRelaciones.py")
+        raise SystemExit(f"No se encontró: {args.relaciones} - ejecuta antes 5_ExtraerRelaciones.py")
     if not args.corpus.exists():
-        raise SystemExit(f"No se encontró: {args.corpus} — ejecuta antes 3_ValidarDatos.py")
+        raise SystemExit(f"No se encontró: {args.corpus} - ejecuta antes 3_ValidarDatos.py")
  
     personas, lugares = cargar_categorias_corpus(args.corpus)
     print(f"Personas conocidas en el corpus : {len(personas)}")
@@ -287,7 +268,7 @@ def main():
         filas = list(csv.DictReader(f))
     print(f"Relaciones cargadas             : {len(filas)}")
  
-    # ── Construir nodos ───────────────────────────────────────────────────
+    # Construir nodos
     nodos: dict[str, dict] = {}  # node_id -> atributos
     aristas: list[dict] = []
  
@@ -348,7 +329,134 @@ def main():
                     "frase_evidencia": "",
                 })
  
-    # ── Filtrar nodos puramente genéricos (y sus aristas) si se ha pedido ──
+    # Añadir nodos del corpus final 
+    # Aunque una entidad no aparezca en ninguna frase con relación reconocible,
+    # si RTVE la etiquetó como persona/lugar/keyword en algún documento debe
+    # estar representada en el grafo - siempre que supere el filtro de calidad.
+    # Filtros aplicados:
+    #   1. Frecuencia mínima: la entidad debe aparecer en ≥2 documentos distintos.
+    #   2. Lista negra: excluye artefactos del NER de RTVE (frases, referencias
+    #      legales, etiquetas vacías, fechas mal etiquetadas como persona, etc.)
+    #      detectados mediante revisión manual de la lista completa de nodos nuevos.
+    with open(args.corpus, encoding="utf-8") as f:
+        corpus = json.load(f)
+ 
+    # Lista negra de artefactos conocidos del NER de RTVE
+    LISTA_NEGRA_CORPUS = {
+        # Artefactos NER - frases o texto libre mal etiquetado como entidad
+        "No Hay Lugares Mencionados En El Texto Proporcionado.",
+        "No Hay Menciones Explícitas De Lugares En El Texto Proporcionado.",
+        "NOTA INFORMATIVA", "SITUACION ACTUAL EN LAS DISTINTAS REGIONES POLICIALES",
+        # Fechas y eventos mal etiquetados como persona
+        "23-F", "23 de febrero", "23 de Febrero", "24 de febrero",
+        "VISTA ORAL 2/81", "Vista Oral 2/81", "Vista oral 2/81", "Vista oral",
+        "causa 2/81", "Causa s/n",
+        # Referencias legales
+        "artículo 555 del Código de Justicia Militar",
+        "Real Decreto 287/1981", "C.j.m. (código De Justicia Militar)",
+        # Abreviaturas/etiquetas sueltas sin valor de entidad
+        "DTOR", "DTOR.", "E.m.", "S.m.", "Prejujem (j-2)",
+        # Colectivos demasiado genéricos
+        "medios de comunicación", "militares", "procesados",
+        "Grupos Y Partidos Situados A La Derecha De Alianza Popular",
+        "Jefes Y Oficiales De La Capital (destinatarios De Panfletos)",
+        "Miembros De Las Diferentes Comisiones Militares",
+        "ACCIONES DE PROTESTA", "Mando Militar",
+        # Organismos extranjeros sin relevancia directa
+        "Assembleia Municipal Do Concelho De Campo Maior",
+        "Comité Ejecutivo De La Confederación General De Trabajadores Del Uruguay",
+        "Exmº. Senhor Chanceler Do Consulado De Espanha Em Elvas",
+        # Lugares que son en realidad documentos/secciones
+        "Dac", "Espanha", "Elvas",
+    }
+    FREQ_MIN_CORPUS = 2  # la entidad debe aparecer en al menos 2 documentos
+ 
+    # Calcular frecuencia por documento de cada entidad en el corpus
+    freq_docs: dict[str, set] = defaultdict(set)
+    for doc in corpus:
+        doc_id = str(doc.get("id", ""))
+        for campo in ("personas", "lugares", "keywords"):
+            for nombre in doc.get(campo, []):
+                nombre = nombre.strip()
+                if nombre:
+                    freq_docs[nombre].add(doc_id)
+ 
+    # Construir índice doc_id - metadatos del documento
+    meta_doc = {}
+    for doc in corpus:
+        doc_id = str(doc.get("id", ""))
+        meta_doc[doc_id] = {
+            "titulo": doc.get("title", ""),
+            "url": doc.get("source_url", "") or f"https://23fbuscador.rtve.es/document/ocr/{doc_id}",
+            "fecha": "",
+        }
+ 
+    n_nodos_nuevos = 0
+    n_aristas_nuevas = 0
+    n_filtrados_negra = 0
+    n_filtrados_freq = 0
+ 
+    for doc in corpus:
+        doc_id = str(doc.get("id", ""))
+        meta = meta_doc.get(doc_id, {})
+        doc_node = f"DOC_{doc_id}"
+ 
+        # Asegurar que el nodo Documento existe aunque no tenga relaciones
+        if doc_node not in nodos:
+            nodos[doc_node] = {
+                "label": meta.get("titulo", doc_node),
+                "tipo": "Documento",
+                "documento_id": doc_id,
+                "url": meta.get("url", ""),
+                "fecha": meta.get("fecha", ""),
+            }
+            n_nodos_nuevos += 1
+ 
+        # Añadir cada entidad etiquetada en el documento (con filtros)
+        for campo in ("personas", "lugares", "keywords"):
+            for nombre in doc.get(campo, []):
+                nombre = nombre.strip()
+                if not nombre:
+                    continue
+ 
+                # Filtro 1: lista negra de artefactos
+                if nombre in LISTA_NEGRA_CORPUS:
+                    n_filtrados_negra += 1
+                    continue
+ 
+                # Filtro 2: frecuencia mínima (≥ FREQ_MIN_CORPUS documentos)
+                if len(freq_docs.get(nombre, set())) < FREQ_MIN_CORPUS:
+                    n_filtrados_freq += 1
+                    continue
+ 
+                ya_existia = nombre in nodos
+                asegurar_nodo_entidad(nombre)
+                clave = (doc_node, nombre)
+                if clave not in docs_entidades_vistas:
+                    docs_entidades_vistas.add(clave)
+                    aristas.append({
+                        "origen": doc_node,
+                        "destino": nombre,
+                        "tipo": "MENCIONA",
+                        "relacion_original": "MENCIONA_CORPUS",
+                        "negada": False,
+                        "documento_id": doc_id,
+                        "documento_fecha": "",
+                        "frase_evidencia": "",
+                    })
+                    n_aristas_nuevas += 1
+ 
+    print(f"Entidades del corpus filtradas (lista negra) : {n_filtrados_negra}")
+    print(f"Entidades del corpus filtradas (frecuencia<{FREQ_MIN_CORPUS}) : {n_filtrados_freq}")
+    print(f"Aristas MENCIONA_CORPUS añadidas            : {n_aristas_nuevas}")
+ 
+    nodos_corpus = sum(1 for n in nodos.values() if n["tipo"] != "Documento")
+    print(f"Nodos añadidos desde corpus (sin relación previa) : {n_nodos_nuevos} docs, "
+          f"{n_aristas_nuevas} aristas MENCIONA_CORPUS nuevas")
+    print(f"Total entidades en el grafo (personas+lugares+inst): "
+          f"{sum(1 for n in nodos.values() if n['tipo'] != 'Documento')}")
+ 
+    # Filtrar nodos puramente genéricos
     if genericos_a_excluir:
         nodos_excluidos = {n for n in nodos if n in genericos_a_excluir}
         n_nodos_antes, n_aristas_antes = len(nodos), len(aristas)
@@ -363,14 +471,14 @@ def main():
         print(f"Aristas excluidas (por arrastre) : {n_aristas_antes - len(aristas)} "
               f"({n_aristas_antes} -> {len(aristas)})")
  
-    print(f"{'─' * 50}")
+   
     print(f"Nodos totales   : {len(nodos)}")
     from collections import Counter
     print("  por tipo      :", dict(Counter(n["tipo"] for n in nodos.values())))
     print(f"Aristas totales : {len(aristas)}")
     print("  por tipo      :", dict(Counter(a["tipo"] for a in aristas)))
  
-    # ── Guardar como JSON node-link (no depende de networkx) ──────────────
+    # Guardar como JSON node-link
     grafo_json = {
         "nodes": [{"id": node_id, **attrs} for node_id, attrs in nodos.items()],
         "edges": aristas,
@@ -380,9 +488,9 @@ def main():
         json.dump(grafo_json, f, ensure_ascii=False, indent=2)
     print(f"\nGuardado JSON (node-link) en : {args.out_json}")
  
-    # ── Guardar como GraphML si networkx está disponible ───────────────────
+    # Guardar como GraphML si networkx está disponible
     if nx is None:
-        print("\n(networkx no está instalado — se omite la exportación a .graphml;")
+        print("\n(networkx no está instalado - se omite la exportación a .graphml;")
         print(" instala con: pip install networkx)")
         return
  
@@ -405,4 +513,3 @@ def main():
  
 if __name__ == "__main__":
     main()
- 

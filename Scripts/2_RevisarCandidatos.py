@@ -1,5 +1,5 @@
 """
-2_RevisarCcandidatos.py — Pre-revisión asistida de candidatos de fusión
+2_RevisarCandidatos.py - Pre-revisión asistida de candidatos de fusión
 ─────────────────────────────────────────────────────────────────────
 Entrada : data/entity_merge_candidates.csv        (bruto de 1_LimpiarDatos.py)
 Salida  : data/entity_merge_candidates_revisado.csv
@@ -9,7 +9,7 @@ Qué hace (heurística automática, NO decide fusiones por sí sola):
        con muchas entidades distintas (cargos como "Capitán", "Fiscal",
        "Guardia Civil"...) cuyos compañeros de pareja son muy heterogéneos
        entre sí (poca similitud de palabras significativas). Estos se
-       marcan automáticamente como "no" — fusionarlos sería un falso
+       marcan automáticamente como "no" - fusionarlos sería un falso
        positivo casi seguro (mismo cargo, personas distintas).
     2. Para el resto de pares (los candidatos "reales"), agrupa por
        clúster (componentes conexas, usando solo palabras realmente
@@ -17,14 +17,14 @@ Qué hace (heurística automática, NO decide fusiones por sí sola):
        'cluster_id' para revisar decisiones relacionadas juntas en
        lugar de fila por fila.
     3. Deja la columna 'aprobar_fusion(si/no)' VACÍA en todo lo que no
-       sea claramente genérico — la decisión final de aprobar es manual
+       sea claramente genérico - la decisión final de aprobar es manual
  
 Tras revisar y completar el CSV (escribiendo 'si'/'no' donde falte),
 se usa 3_ValidarDatos.py para aplicar fusiones.
  
 Uso:
-    python scripts/01b_revisar_candidatos.py
-    python scripts/01b_revisar_candidatos.py --hub-min-degree 5 --hub-max-avgsim 0.15
+    python scripts/2_RevisarCandidatos.py
+    python scripts/2_RevisarCcandidatos.py --hub-min-degree 5 --hub-max-avgsim 0.15
 """
  
 import argparse
@@ -66,9 +66,7 @@ RARE_WORD_MAX_DF = 4      # palabra "infrecuente" = aparece en <= N nombres dist
  
  
 def palabras_significativas(nombre: str) -> set[str]:
-    """Extrae palabras relevantes de un nombre (sin cargos/títulos/partículas)
-    para comparar similitud entre dos nombres de forma robusta a mayúsculas,
-    acentos y paréntesis."""
+    """Extrae palabras relevantes de un nombre (sin cargos/títulos/partículas) para comparar similitud entre dos nombres de forma robusta a mayúsculas, acentos y paréntesis."""
     n = nombre.lower()
     n = re.sub(r"\([^)]*\)", " ", n)
     n = re.sub(r"[^a-záéíóúñü\s]", " ", n)
@@ -81,9 +79,7 @@ def detectar_terminos_genericos(
     hub_max_avgsim: float,
 ) -> set[str]:
     """
-    Identifica nombres que actúan como 'hub' (emparejados con muchas
-    entidades distintas) cuyos compañeros son heterogéneos entre sí
-    (poca similitud de palabras), señal de que el nombre es un cargo o
+    Identifica nombres que actúan como 'hub' (emparejados con muchas entidades distintas) cuyos compañeros son heterogéneos entre sí (poca similitud de palabras), señal de que el nombre es un cargo o
     rol genérico y no una persona concreta.
     """
     partners: dict[str, set[str]] = defaultdict(set)
@@ -121,12 +117,8 @@ def construir_clusters(
     rare_word_max_df: int,
 ) -> dict[str, int]:
     """
-    Agrupa nombres NO genéricos en clústeres (componentes conexas) usando
-    como criterio de unión que compartan al menos una palabra significativa
-    realmente infrecuente en el conjunto (aparece en pocos nombres distintos
-    del dataset). Esto evita el 'efecto cadena' de unir por palabras comunes
-    (p.ej. 'Juan', 'España', 'Rey') que mezclarían personas distintas.
-    Devuelve {nombre: cluster_id} solo para nombres en clústeres de >1 miembro.
+    Agrupa nombres NO genéricos en clústeres (componentes conexas) usando como criterio de unión que compartan al menos una palabra significativa realmente infrecuente en el conjunto (aparece en pocos nombres distintos
+    del dataset). Esto evita el 'efecto cadena' de unir por palabras comunes (p.ej. 'Juan', 'España', 'Rey') que mezclarían personas distintas.Devuelve {nombre: cluster_id} solo para nombres en clústeres de >1 miembro.
     """
     todos_los_nombres = set()
     for r in rows:
@@ -191,7 +183,7 @@ def main():
     args = parser.parse_args()
  
     if not args.input.exists():
-        raise SystemExit(f"No se encontró: {args.input} — ejecuta antes 1_LimpiezaDatos.py")
+        raise SystemExit(f"No se encontró: {args.input} - ejecuta antes 1_LimpiezaDatos.py")
  
     with open(args.input, encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -233,9 +225,9 @@ def main():
     print(f"Filas marcadas automáticamente 'no' : {n_auto_no}")
     print(f"Filas pendientes de tu decisión      : {pendientes}")
     print(f"\nGuardado en: {args.output}")
-    print(f"\n→ Abre el CSV, ordénalo por 'cluster_id' para revisar juntos los")
+    print(f"\n Abre el CSV, ordénalo por 'cluster_id' para revisar juntos los")
     print(f"  candidatos relacionados, y completa 'si'/'no' donde esté vacío.")
-    print(f"  Luego ejecuta 03_ValidarDatos.py con ese CSV ya completado.")
+    print(f"  Luego ejecuta 3_ValidarDatos.py con ese CSV ya completado.")
  
  
 if __name__ == "__main__":

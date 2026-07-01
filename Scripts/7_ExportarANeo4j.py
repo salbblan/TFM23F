@@ -1,5 +1,5 @@
 """
-7_ExportarNeo4j.py — Exporta el grafo a CSV listos para Neo4j (LOAD CSV)
+7_ExportarNeo4j.py - Exporta el grafo a CSV listos para Neo4j (LOAD CSV)
 ─────────────────────────────────────────────────────────────────────
 Entrada : data/grafo_23f.json            (de 6_ConstruirGrafo.py)
 Salida  : data/neo4j_nodos.csv
@@ -8,36 +8,24 @@ Salida  : data/neo4j_nodos.csv
  
 Patrón usado (estándar en Neo4j, sin necesitar el plugin APOC):
     Cada nodo recibe DOS etiquetas:
-        - Una genérica  :Entidad   (permite enlazar aristas sin tener
-                                     que saber de qué tipo es cada nodo)
+        - Una genérica  :Entidad   (permite enlazar aristas sin tener que saber de qué tipo es cada nodo)
         - Una específica :Persona / :Institución / :Lugar / :Documento
  
-    Las aristas se cargan en bloques separados por tipo de relación
-    (CONOCE, INFORMA, PERTENECE, LLAMA, ASISTE, ORDENA, MENCIONA,
-    PROPONE, SOLICITA, COLABORA, AUTORIZA, NIEGA), porque Cypher no
-    permite parametrizar el tipo de relación dinámicamente sin APOC.
+    Las aristas se cargan en bloques separados por tipo de relación (CONOCE, INFORMA, PERTENECE, LLAMA, ASISTE, ORDENA, MENCIONA,
+    PROPONE, SOLICITA, COLABORA, AUTORIZA, NIEGA), porque Cypher no permite parametrizar el tipo de relación dinámicamente sin APOC.
  
-    Relaciones repetidas entre el mismo par de entidades (p.ej. "Tejero
-    CONOCE a Milans" mencionado en 5 documentos distintos) se fusionan en
-    UNA SOLA arista mediante MERGE, en vez de crear 5 aristas paralelas
-    idénticas — esto evita inflar artificialmente el grado de los nodos
-    y las métricas de centralidad. Para no perder información, la
-    evidencia de cada mención se ACUMULA en propiedades tipo lista:
-        r.veces_mencionado       -> cuántas veces se detectó esta relación
-        r.documentos_id          -> lista de documentos donde aparece
-        r.frases_evidencia       -> lista de frases textuales de evidencia
-        r.relaciones_originales  -> lista de las 13 relaciones detalladas
-                                     que se mapearon a esta arista
-        r.negada_alguna_vez      -> true si en AL MENOS una mención se
-                                     detectó una negación cercana al verbo
+    Relaciones repetidas entre el mismo par de entidades (p.ej. "Tejero CONOCE a Milans" mencionado en 5 documentos distintos) se fusionan en
+    una sola arista mediante MERGE, en vez de crear 5 aristas paralelas idénticas - esto evita inflar artificialmente el grado de los nodos
+    y las métricas de centralidad. Para no perder información, la evidencia de cada mención se ACUMULA en propiedades tipo lista:
+        r.veces_mencionado       : cuántas veces se detectó esta relación
+        r.documentos_id          : lista de documentos donde aparece
+        r.frases_evidencia       : lista de frases textuales de evidencia
+        r.relaciones_originales  : lista de las 13 relaciones detalladas que se mapearon a esta arista
+        r.negada_alguna_vez      : true si en AL MENOS una mención se detectó una negación cercana al verbo
  
 Uso:
     python scripts/7_ExportarNeo4j.py
- 
-Después, copia neo4j_nodos.csv y neo4j_aristas.csv a la carpeta
-'import' de tu base de datos Neo4j (o usa file:/// con la ruta
-absoluta), abre Neo4j Browser y ejecuta el contenido de
-importar_neo4j.cypher.
+
 """
  
 import argparse
@@ -87,15 +75,15 @@ def exportar_csvs(grafo: dict, nodos_csv: Path, aristas_csv: Path):
  
 def generar_cypher() -> str:
     lineas = []
-    lineas.append("// ── Importación del grafo 23-F en Neo4j ──────────────────────────")
+    lineas.append("// Importación del grafo 23-F en Neo4j ")
     lineas.append("// Copia neo4j_nodos.csv y neo4j_aristas.csv a la carpeta 'import' de")
     lineas.append("// tu base de datos Neo4j antes de ejecutar este script.")
     lineas.append("")
-    lineas.append("// ── 1. Restricción de unicidad (también crea índice automáticamente) ──")
+    lineas.append("// 1. Restricción de unicidad (también crea índice automáticamente) ")
     lineas.append("CREATE CONSTRAINT entidad_id_unica IF NOT EXISTS")
     lineas.append("FOR (e:Entidad) REQUIRE e.id IS UNIQUE;")
     lineas.append("")
-    lineas.append("// ── 2. Cargar nodos (una pasada por tipo, añade la etiqueta específica) ──")
+    lineas.append("// 2. Cargar nodos (una pasada por tipo, añade la etiqueta específica)")
     for tipo in TIPOS_NODO:
         lineas.append(f"// -- Nodos de tipo {tipo} --")
         lineas.append("LOAD CSV WITH HEADERS FROM 'file:///neo4j_nodos.csv' AS row")
@@ -106,7 +94,7 @@ def generar_cypher() -> str:
             lineas.append("SET n.documento_id = row.documento_id, n.url = row.url, n.fecha = row.fecha")
         lineas.append(f"SET n:`{tipo}`;")
         lineas.append("")
-    lineas.append("// ── 3. Cargar aristas (una pasada por tipo de relación) ──")
+    lineas.append("// 3. Cargar aristas (una pasada por tipo de relación) ")
     for tipo in TIPOS_ARISTA:
         lineas.append(f"// -- Aristas de tipo {tipo} --")
         lineas.append("LOAD CSV WITH HEADERS FROM 'file:///neo4j_aristas.csv' AS row")
@@ -119,7 +107,11 @@ def generar_cypher() -> str:
         lineas.append("    r.documentos_id = coalesce(r.documentos_id, []) + row.documento_id,")
         lineas.append("    r.fechas_documentos = coalesce(r.fechas_documentos, []) + row.documento_fecha,")
         lineas.append("    r.frases_evidencia = coalesce(r.frases_evidencia, []) + row.frase_evidencia,")
-        lineas.append("    r.negada_alguna_vez = coalesce(r.negada_alguna_vez, false) OR toBoolean(row.negada);")
+        lineas.append("    r.negada_alguna_vez = coalesce(r.negada_alguna_vez, false) OR toBoolean(row.negada),")
+        if tipo == "MENCIONA":
+            lineas.append("    r.tiene_evidencia_textual = coalesce(r.tiene_evidencia_textual, false) OR (row.relacion_original = 'MENCIONA_DOCUMENTO');")
+        else:
+            lineas.append("    r.tiene_evidencia_textual = true;")
         lineas.append("")
     return "\n".join(lineas)
  
@@ -133,7 +125,7 @@ def main():
     args = parser.parse_args()
  
     if not args.grafo.exists():
-        raise SystemExit(f"No se encontró: {args.grafo} — ejecuta antes 6_ConstruirGrafo.py")
+        raise SystemExit(f"No se encontró: {args.grafo} - ejecuta antes 6_ConstruirGrafo.py")
  
     with open(args.grafo, encoding="utf-8") as f:
         grafo = json.load(f)

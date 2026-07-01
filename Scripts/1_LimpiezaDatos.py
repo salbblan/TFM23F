@@ -1,7 +1,7 @@
 """
-1_LimpiarDatos.py — Limpieza y normalización del corpus 23-F
+1_LimpiarDatos.py - Limpieza y normalización del corpus 23-F
 ─────────────────────────────────────────────────────────────────────
-Entrada : data/rtve_23f_corpus.json        (crudo, de 00_download.py)
+Entrada : data/rtve_23f_corpus.json        (crudo, de 0_DescargarDatos.py)
 Salida  : data/rtve_23f_corpus_clean.json  (limpio)
  
 Qué hace (SIEMPRE, automático y seguro):
@@ -10,21 +10,14 @@ Qué hace (SIEMPRE, automático y seguro):
     3. Elimina entidades duplicadas exactas dentro de cada documento
  
 Qué NO hace automáticamente (requiere revisión humana):
-    Unificar variantes de la misma persona (ej. 'TEJERO' y
-    'Teniente Coronel TEJERO'). El campo 'personas' del corpus mezcla
-    personas reales, instituciones y grupos genéricos — la fusión
-    automática por similitud de texto puede juntar entidades que NO
-    son la misma persona. En su lugar, este script genera un CSV de
-    CANDIDATOS para que el usuario decida cuál mantener.
+    Unificar variantes de la misma persona (ej. 'TEJERO' y 'Teniente Coronel TEJERO'). El campo 'personas' del corpus mezcla personas reales, instituciones y grupos genéricos - la fusión
+    automática por similitud de texto puede juntar entidades que no son la misma persona. En su lugar, este script genera un CSV de candidatos para que el usuario decida cuál mantener.
  
-    → data/entity_merge_candidates.csv   (columnas: nombre_a, nombre_b, score)
- 
-Para aplicar fusiones ya revisadas y aprobadas:
-    python scripts/02_apply_merges.py --approved data/entity_merges_approved.csv
+    data/entity_merge_candidates.csv   (columnas: nombre_a, nombre_b, score)
  
 Uso:
-    python scripts/01_clean.py
-    python scripts/01_clean.py --candidate-threshold 80   # más candidatos (menos estricto)
+    python 1_LimpiarDatos.py
+    python 1_LimpiarDatos.py --candidate-threshold 80   # más candidatos 
 """
  
 import argparse
@@ -39,7 +32,7 @@ DEFAULT_INPUT  = Path(__file__).resolve().parent.parent / "data" / "rtve_23f_cor
 DEFAULT_OUTPUT = Path(__file__).resolve().parent.parent / "data" / "rtve_23f_corpus_clean.json"
 DEFAULT_CANDS  = Path(__file__).resolve().parent.parent / "data" / "entity_merge_candidates.csv"
  
-DEFAULT_CANDIDATE_THRESHOLD = 80  # umbral para SUGERIR candidatos (no fusiona solo)
+DEFAULT_CANDIDATE_THRESHOLD = 80  # umbral para sugerir candidatos (no fusiona solo, se necesita revisión)
  
 KNOWN_ACRONYMS = {
     "CESID", "REY", "REINA", "TCOL", "ONU", "OTAN", "PSOE", "UCD", "PCE",
@@ -68,7 +61,7 @@ def strip_rank(name: str) -> str:
     return cleaned if cleaned else name
  
  
-# ── Limpieza de texto OCR ────────────────────────────────────────────────────
+# Limpieza de texto OCR
  
 def clean_text(raw: str) -> str:
     if not raw:
@@ -101,7 +94,7 @@ def split_entity(raw: str) -> tuple[str, str | None]:
     return raw.strip(), None
  
  
-# ── Generar candidatos de fusión (SIN aplicar nada) ──────────────────────────
+# Generar candidatos de fusión
  
 def generate_merge_candidates(
     all_names: list[str],
@@ -109,10 +102,8 @@ def generate_merge_candidates(
     threshold: int,
 ) -> list[tuple[str, str, int, str, str]]:
     """
-    Compara cada PAR de nombres directamente (sin encadenar transitivamente)
-    y devuelve los pares cuyo score de similitud (sobre el núcleo, sin rango)
-    supera el umbral. No decide nada por sí mismo — son candidatos a revisar.
-    Incluye en qué documento(s) aparece cada nombre, para validar contra el texto.
+    Compara cada PAR de nombres directamente (sin encadenar transitivamente) y devuelve los pares cuyo score de similitud (sobre el núcleo, sin rango)
+    supera el umbral. No decide nada por sí mismo - son candidatos a revisar. Incluye en qué documento(s) aparece cada nombre, para validar contra el texto.
     """
     unique_names = sorted(set(all_names))
     cores = {n: strip_rank(n) for n in unique_names}
@@ -133,7 +124,7 @@ def generate_merge_candidates(
     return candidates
  
  
-# ── Programa principal ───────────────────────────────────────────────────────
+# Programa principal
  
 def main():
     parser = argparse.ArgumentParser(description="Limpia y normaliza el corpus 23-F")
@@ -219,13 +210,13 @@ def main():
         for a, b, score, docs_a, docs_b in candidates:
             writer.writerow([a, docs_a, b, docs_b, score, ""])
  
-    print(f"{'─'*50}")
+    print(f"\n")
     print(f"Documentos procesados        : {len(cleaned_docs)}")
     print(f"Personas únicas (sin fusionar): {len(set(all_persona_names))}")
     print(f"Pares candidatos a revisar    : {len(candidates)}")
     print(f"\nJSON limpio guardado en      : {args.output}")
     print(f"Candidatos de fusión en      : {args.candidates_out}")
-    print(f"\n→ Abre el CSV de candidatos, escribe 'si' en la columna")
+    print(f"\n Abre el CSV de candidatos, escribe 'si' en la columna")
     print(f"  'aprobar_fusion' para los pares que SÍ sean la misma persona,")
     
  

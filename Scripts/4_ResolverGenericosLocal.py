@@ -1,5 +1,5 @@
 """
-4_ResolverGenericosLocal.py — Resolución local de términos genéricos
+4_ResolverGenericosLocal.py - Resolución local de términos genéricos
 ─────────────────────────────────────────────────────────────────────
 Entrada : data/entity_merge_candidates_revisado.csv  (de 2_RevisarCandidatos.py)
           data/rtve_23f_corpus_final.json            (de 3_ValidarDatos.py)
@@ -58,7 +58,7 @@ STOPWORDS = set("""
 MIN_WORD_LEN = 4
  
  
-# ── Funciones reutilizadas (mismas que en 2_RevisarCandidatos.py / 3_ValidarDatos.py) ──
+# Funciones
  
 def palabras_significativas(nombre: str) -> set[str]:
     n = nombre.lower()
@@ -142,7 +142,7 @@ def construir_mapeo_canonico(rows: list[dict], corpus: list[dict]) -> dict[str, 
     return mapeo
  
  
-# ── Resolución local por documento ───────────────────────────────────────────
+# Resolución local por documento
  
 def resolver_genericos_por_documento(
     corpus: list[dict],
@@ -169,9 +169,7 @@ def resolver_genericos_por_documento(
                 p for p in personas_doc
                 if generico_lower in p.lower()
                 and p.strip().lower() != generico_lower
-                # Excluir otros términos genéricos como posible "resolución":
-                # p.ej. "Defensor" no debe resolverse a "Defensores" (ambos
-                # son genéricos, ninguno es una persona concreta).
+                # Excluir otros términos genéricos como posible "resolución": p.ej. "Defensor" no debe resolverse a "Defensores" (ambos son genéricos, ninguno es una persona concreta).
                 and p.strip() not in genericos
             ]
             # quitar duplicados conservando orden
@@ -184,7 +182,7 @@ def resolver_genericos_por_documento(
                 resueltos += 1
             elif len(candidatos) > 1:
                 ambiguos += 1
-            # 0 candidatos -> no se hace nada (el genérico no aparece con nombre en este doc)
+            # 0 candidatos, no se hace nada (el genérico no aparece con nombre en este doc)
  
         if alias_doc:
             alias_por_documento[doc_id] = alias_doc
@@ -194,7 +192,7 @@ def resolver_genericos_por_documento(
     return alias_por_documento
  
  
-# ── Programa principal ───────────────────────────────────────────────────────
+# Programa principal
  
 def main():
     parser = argparse.ArgumentParser(
@@ -210,7 +208,7 @@ def main():
     if not args.candidatos.exists():
         raise SystemExit(f"No se encontró: {args.candidatos}")
     if not args.corpus.exists():
-        raise SystemExit(f"No se encontró: {args.corpus} — ejecuta antes 3_ValidarDatos.py")
+        raise SystemExit(f"No se encontró: {args.corpus} - ejecuta antes 3_ValidarDatos.py")
  
     with open(args.candidatos, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))

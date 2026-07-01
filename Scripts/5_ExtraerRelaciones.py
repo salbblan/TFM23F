@@ -1,18 +1,15 @@
 """
 5_ExtraerRelaciones.py
 ----------------------
-Extrae relaciones tipadas entre entidades (personas/lugares) a partir del
-corpus del 23-F, usando:
+Extrae relaciones tipadas entre entidades (personas/lugares) a partir del corpus del 23-F, usando:
   1) El mapeo de fusión de entidades ya revisado (CSV) para normalizar
      variantes de nombre a un nombre canónico.
   2) Un diccionario de patrones léxicos (verbos/expresiones) para detectar
      13 tipos de relación dentro de cada frase.
  
 Reglas aplicadas (decisiones acordadas):
-  - Si dos entidades coinciden en una frase pero ningún verbo de la lista
-    coincide -> se descarta la frase (no se genera relación genérica).
-  - No se infiere dirección sujeto->objeto: la relación se guarda como
-    no dirigida (par de entidades sin importar el orden), aunque ambos
+  - Si dos entidades coinciden en una frase pero ningún verbo de la lista coincide -> se descarta la frase (no se genera relación genérica).
+  - No se infiere dirección sujeto - objeto: la relación se guarda como no dirigida (par de entidades sin importar el orden), aunque ambos
     nombres se conservan en columnas separadas tal y como aparecen.
  
 Salida: CSV con columnas:
@@ -28,25 +25,24 @@ from collections import defaultdict
 from itertools import combinations
 from pathlib import Path
  
-# ----------------------------------------------------------------------
-# CONFIGURACIÓN DE RUTAS 
-# ----------------------------------------------------------------------
+
+# Rutas 
+
 CSV_FUSION_PATH = Path(__file__).resolve().parent.parent / "data" / "entity_merge_candidates_revisado.csv"
-CORPUS_JSON_PATH = Path(__file__).resolve().parent.parent / "data" / "rtve_23f_corpus_final.json"  # de 3_ValidarDatos.py — ya incluye entidades faltantes
+CORPUS_JSON_PATH = Path(__file__).resolve().parent.parent / "data" / "rtve_23f_corpus_final.json"  # de 3_ValidarDatos.py - ya incluye entidades faltantes
 ALIAS_LOCALES_PATH = Path(__file__).resolve().parent.parent / "data" / "alias_locales_por_documento.json"  # de 4_ResolverGenericosLocal.py
-OVERRIDES_MANUALES_PATH = Path(__file__).resolve().parent.parent / "data" / "overrides_manuales.json"  # solo 'alias'/'secciones' (revisión manual humana)
+OVERRIDES_MANUALES_PATH = Path(__file__).resolve().parent.parent / "data" / "overrides_manuales.json"  # solo 'alias'/'secciones' (revisión manual)
 OUTPUT_CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "relaciones_extraidas.csv"
 OUTPUT_JSON_PATH = Path(__file__).resolve().parent.parent / "data" / "relaciones_extraidas.json"
 CANONICAL_MAP_PATH = Path(__file__).resolve().parent.parent / "data" / "entity_canonical_map.json" 
 
-# Longitud mínima de un alias para considerarlo válido como mención de
-# entidad (evita falsos positivos con nombres de pila sueltos muy cortos).
+# Longitud mínima de un alias para considerarlo válido como mención deentidad (evita falsos positivos con nombres de pila sueltos muy cortos).
 MIN_ALIAS_LEN = 4
  
  
-# ----------------------------------------------------------------------
-# 1. DICCIONARIO DE RELACIONES -> PATRONES REGEX (sin acentos, minúsculas)
-# ----------------------------------------------------------------------
+
+# 1. Diccionario de relaciones, patrones regex (sin acentos, minúsculas)
+
 RELATION_PATTERNS = {
     "SE_REUNE_CON": [
         r"se reun\w* con", r"reunion\w* con", r"se entrevist\w* con",
@@ -112,18 +108,12 @@ def extraer_fecha(*textos: str):
     del título o el texto de un documento. Busca, por orden de prioridad:
         1. "18 de febrero de 1981"           (fecha completa con nombre de mes)
         2. "18-02-1981" / "18/02/1981"        (fecha con año de 4 cifras)
-        3. "18-02-81" / "FECHA:18-02-81"      (fecha corta en cabecera/membrete,
-           muy común en los documentos militares de este corpus: códigos de
-           referencia tipo "C/SG/2820/20-02-82")
+        3. "18-02-81" / "FECHA:18-02-81"      (fecha corta en cabecera/membrete, muy común en los documentos militares de este corpus: códigos de referencia tipo "C/SG/2820/20-02-82")
     Si no encuentra nada reconocible, devuelve None (no se inventa fecha).
  
-    NOTA: para años de 2 cifras se asume el prefijo "19" (válido para este
-    corpus, que cubre 1981-1982). Si se reutiliza este script con documentos
-    de otra época, ese supuesto habría que revisarlo.
+    NOTA: para años de 2 cifras se asume el prefijo "19" (válido para este corpus, que cubre 1981-1982). Si se reutiliza este script con documentos de otra época, ese supuesto habría que revisarlo.
  
-    NOTA 2: fechas que solo dan mes y año ("diciembre de 1981", sin día) se
-    descartan a propósito — devolver "1981-12-01" inventaría un día que el
-    documento no especifica.
+    NOTA 2: fechas que solo dan mes y año ("diciembre de 1981", sin día) se descartan a propósito - devolver "1981-12-01" inventaría un día que el documento no especifica.
     """
     for texto in textos:
         if not texto:
@@ -153,8 +143,7 @@ def extraer_fecha(*textos: str):
  
  
 def quitar_acentos(texto: str) -> str:
-    """Normaliza acentos para que el matching de patrones sea robusto
-    independientemente de tildes (informó / informo, etc.)."""
+    """Normaliza acentos para que el matching de patrones sea robusto independientemente de tildes (informó / informo, etc.)."""
     nfkd = unicodedata.normalize("NFKD", texto)
     return "".join(c for c in nfkd if not unicodedata.combining(c))
  
@@ -169,19 +158,16 @@ def dividir_en_frases(texto: str):
     return [f.strip() for f in frases if f.strip()]
  
  
-# ----------------------------------------------------------------------
-# 2. CONSTRUIR EL DICCIONARIO DE ALIAS 
-# ----------------------------------------------------------------------
+# 2. Construir el diccionario de alias 
+
 def cargar_mapeo_canonico(path: Path) -> dict:
     """
-    Carga el mapeo alias -> nombre canónico generado por 03_ValidarDatos.py.
-    Así se evita recalcular las fusiones y se garantiza que todo el pipeline
-    usa exactamente los mismos nombres canónicos.
+    Carga el mapeo alias -> nombre canónico generado por 3_ValidarDatos.py. Así se evita recalcular las fusiones y se garantiza que todo el pipeline usa exactamente los mismos nombres canónicos.
     """
     if not path.exists():
         raise SystemExit(
             f"No se encontró: {path}\n"
-            "Ejecuta antes 03_ValidarDatos.py para generar entity_canonical_map.json"
+            "Ejecuta antes 3_ValidarDatos.py para generar entity_canonical_map.json"
         )
 
     with open(path, encoding="utf-8") as f:
@@ -189,9 +175,7 @@ def cargar_mapeo_canonico(path: Path) -> dict:
  
 def construir_diccionario_alias(corpus: list, mapeo_canonico: dict):
     """
-    Construye {alias_en_minusculas: nombre_canonico} para TODAS las
-    entidades (personas/lugares) presentes en el corpus, fusionadas o no.
-    Las que no aparecen en mapeo_canonico se mapean a sí mismas.
+    Construye {alias_en_minusculas: nombre_canonico} para todas las entidades (personas/lugares) presentes en el corpus, fusionadas o no. Las que no aparecen en mapeo_canonico se mapean a sí mismas.
     """
     alias_dict = {}
     for doc in corpus:
@@ -209,11 +193,10 @@ def cargar_alias_locales(path: Path) -> dict:
     """
     Carga el JSON generado por 4_ResolverGenericosLocal.py:
         { "id_documento": { "termino_generico": "nombre_canonico" } }
-    Si el archivo no existe, devuelve un diccionario vacío (la extracción
-    de relaciones sigue funcionando igual, solo sin resolver genéricos).
+    Si el archivo no existe, devuelve un diccionario vacío (la extracción de relaciones sigue funcionando igual, solo sin resolver genéricos).
     """
     if not path.exists():
-        print(f"(Aviso: no se encontró {path} — se continúa sin resolver "
+        print(f"(Aviso: no se encontró {path} - se continúa sin resolver "
               f"términos genéricos locales por documento)")
         return {}
     with open(path, encoding="utf-8") as f:
@@ -228,9 +211,8 @@ def cargar_overrides_manuales(path: Path) -> dict:
             "alias": { "termino": "canonico" }              // caso simple
           }
         }
-    o, para documentos donde un mismo término ("Capitán", "A"...) se refiere
-    a personas distintas en distintas partes del documento (p.ej. varias
-    "CINTA"s de una transcripción telefónica):
+    o, para documentos donde un mismo término ("Capitán", "A"...) se refiere a personas distintas en distintas partes del documento (p.ej. varias 
+      cintas de una transcripción telefónica):
         {
           "id_documento": {
             "secciones": [
@@ -246,7 +228,7 @@ def cargar_overrides_manuales(path: Path) -> dict:
     Si el archivo no existe, devuelve {} (no afecta al resto del pipeline).
     """
     if not path.exists():
-        print(f"(Aviso: no se encontró {path} — se continúa sin overrides manuales)")
+        print(f"(Aviso: no se encontró {path} - se continúa sin overrides manuales)")
         return {}
     with open(path, encoding="utf-8") as f:
         return json.load(f)
@@ -259,16 +241,11 @@ def obtener_segmentos_documento(
     overrides_manuales: dict,
 ) -> list:
     """
-    Devuelve una lista de (texto_segmento, alias_extra_dict) que cubre TODO
-    el texto del documento. Para documentos sin overrides o con un override
-    'alias' simple (sin secciones), devuelve un único segmento con todo el
-    texto. Para documentos con 'secciones', divide el texto según los
-    marcadores literales indicados (p.ej. "CINTA - 1, CARA - 1"), aplicando
-    a cada sección su propio diccionario de alias además de la base.
+    Devuelve una lista de (texto_segmento, alias_extra_dict) que cubre todo el texto del documento. Para documentos sin overrides o con un override
+    'alias' simple (sin secciones), devuelve un único segmento con todo el texto. Para documentos con 'secciones', divide el texto según los
+    marcadores literales indicados (p.ej. "CINTA - 1, CARA - 1"), aplicando a cada sección su propio diccionario de alias además de la base.
  
-    El texto ANTES del primer marcador (si lo hay) usa solo la base, sin
-    ningún alias de sección — por si hay contenido fuera de las cintas
-    delimitadas (cabeceras, índices, etc.).
+    El texto ANTES del primer marcador (si lo hay) usa solo la base, sin ningún alias de sección - por si hay contenido fuera de las cintas delimitadas (cabeceras, índices, etc.).
     """
     alias_base = dict(alias_locales.get(str(doc_id), {}))
     entry = overrides_manuales.get(str(doc_id))
@@ -287,7 +264,7 @@ def obtener_segmentos_documento(
         idx = texto.find(sec["marcador_inicio"])
         if idx == -1:
             print(f"  (Aviso: marcador no encontrado en doc {doc_id}: "
-                  f"{sec['marcador_inicio']!r} — esa sección se omite)")
+                  f"{sec['marcador_inicio']!r} - esa sección se omite)")
             continue
         marcadores.append((idx, sec))
     marcadores.sort(key=lambda par: par[0])
@@ -311,10 +288,8 @@ def obtener_segmentos_documento(
         alias_seccion.update(sec.get("alias", {}))
         rangos_seccion.append((idx_inicio, idx_fin, alias_seccion))
  
-    # Recorrer el texto de principio a fin, rellenando con alias_base
-    # cualquier hueco que quede ENTRE secciones (p.ej. el propio marcador_fin
-    # y lo que venga después, si no coincide exactamente con el siguiente
-    # marcador_inicio) — así no se pierde ningún fragmento de texto.
+    # Recorrer el texto de principio a fin, rellenando con alias_base cualquier hueco que quede entre secciones (p.ej. el propio marcador_fin 
+    # y lo que venga después, si no coincide exactamente con el siguiente marcador_inicio) - así no se pierde ningún fragmento de texto.
     segmentos = []
     cursor = 0
     for idx_inicio, idx_fin, alias_seccion in rangos_seccion:
@@ -331,20 +306,14 @@ def obtener_segmentos_documento(
  
 def compilar_detector_documento(alias_ordenados_doc: list):
     """
-    Compila, para un documento concreto, UN ÚNICO patrón regex que
-    contiene todos los alias como alternativas (en vez de hacer una
-    búsqueda regex por cada alias, que con miles de alias y miles de
-    frases sería extremadamente lento: O(nº_alias x nº_frases)).
+    Compila, para un documento concreto, UN ÚNICO patrón regex que contiene todos los alias como alternativas (en vez de hacer una
+    búsqueda regex por cada alias, que con miles de alias y miles de frases sería extremadamente lento: O(nº_alias x nº_frases)).
  
-    Con un solo patrón compilado, cada frase se analiza en una sola
-    pasada: O(nº_frases). Las alternativas se ordenan por longitud
-    descendente para que, ante solapamiento, el regex prefiera la
-    coincidencia más larga (p.ej. 'Milans Del Bosch' antes que 'Milans').
+    Con un solo patrón compilado, cada frase se analiza en una sola pasada: O(nº_frases). Las alternativas se ordenan por longitud
+    descendente para que, ante solapamiento, el regex prefiera la coincidencia más larga (p.ej. 'Milans Del Bosch' antes que 'Milans').
  
-    Devuelve (patron_compilado, alias_a_canonico) donde alias_a_canonico
-    es un diccionario {alias_en_minusculas: nombre_canonico} ya con los
-    alias locales del documento aplicados (y con prioridad sobre los
-    globales si coinciden, por construir_alias_para_documento).
+    Devuelve (patron_compilado, alias_a_canonico) donde alias_a_canonico es un diccionario {alias_en_minusculas: nombre_canonico} ya con los
+    alias locales del documento aplicados (y con prioridad sobre los globales si coinciden, por construir_alias_para_documento).
     """
     alias_unicos = sorted({alias for alias, _ in alias_ordenados_doc}, key=lambda a: (-len(a), a))
     if not alias_unicos:
@@ -359,8 +328,7 @@ def compilar_detector_documento(alias_ordenados_doc: list):
  
 def detectar_entidades_en_frase(frase: str, patron, alias_a_canonico: dict):
     """
-    Aplica el patrón combinado (una sola pasada) y traduce cada coincidencia
-    a su nombre canónico. Devuelve el conjunto de nombres canónicos
+    Aplica el patrón combinado (una sola pasada) y traduce cada coincidencia a su nombre canónico. Devuelve el conjunto de nombres canónicos
     detectados en la frase.
     """
     if patron is None:
@@ -374,10 +342,8 @@ def detectar_entidades_en_frase(frase: str, patron, alias_a_canonico: dict):
     return encontrados
  
  
-# Ventana de caracteres ANTES del verbo donde se busca una negación.
-# Suficiente para cubrir "no se reunió", "nunca autorizó", "tampoco solicitó",
-# pero corto para no capturar negaciones de otra parte de la frase que no
-# afectan gramaticalmente a este verbo.
+# Ventana de caracteres antes del verbo donde se busca una negación.
+# Suficiente para cubrir "no se reunió", "nunca autorizó", "tampoco solicitó", pero corto para no capturar negaciones de otra parte de la frase que no afectan gramaticalmente a este verbo.
 VENTANA_NEGACION_CHARS = 25
 PATRON_NEGACION = re.compile(r"\b(no|nunca|tampoco|ni)\b", re.IGNORECASE)
  
@@ -387,15 +353,11 @@ def detectar_relaciones_en_frase(frase_sin_acentos: str):
     Devuelve una lista de tuplas (relacion, negada) por cada relación cuyo
     patrón coincide en la frase.
  
-    'negada' es True si justo antes del verbo que disparó la relación
-    aparece una palabra de negación (no/nunca/tampoco/ni) dentro de una
-    ventana corta de caracteres — es decir, la negación se comprueba
-    LOCALMENTE junto al verbo, no en toda la frase, para no marcar como
-    negada una relación cuya negación en realidad pertenece a otra parte
-    de la frase.
+    'negada' es True si justo antes del verbo que disparó la relación aparece una palabra de negación (no/nunca/tampoco/ni) dentro de una
+    ventana corta de caracteres - es decir, la negación se comprueba localmente junto al verbo, no en toda la frase, para no marcar como
+    negada una relación cuya negación en realidad pertenece a otra parte de la frase.
  
-    No se descarta ninguna relación negada (se conserva la información),
-    para que pueda filtrarse o revisarse después según convenga.
+    No se descarta ninguna relación negada (se conserva la información), para que pueda filtrarse o revisarse después según convenga.
     """
     relaciones_encontradas = []
     for relacion, patrones in COMPILED_PATTERNS.items():
@@ -410,9 +372,9 @@ def detectar_relaciones_en_frase(frase_sin_acentos: str):
     return relaciones_encontradas
  
  
-# ----------------------------------------------------------------------
-# 3. PIPELINE PRINCIPAL
-# ----------------------------------------------------------------------
+
+# 3. Pipeline principal
+
 def main():
     with open(CORPUS_JSON_PATH, encoding="utf-8") as f:
         corpus = json.load(f)
@@ -478,11 +440,10 @@ def main():
                 relaciones = detectar_relaciones_en_frase(frase_sin_acentos)
  
                 if not relaciones:
-                    # Decisión acordada: sin verbo de relación -> se descarta
+                    # Decisión acordada: sin verbo de relación se descarta 
                     continue
  
-                # Relación no dirigida: una fila por cada par de entidades
-                # distintas y cada relación detectada en la frase.
+                # Relación no dirigida: una fila por cada par de entidades distintas y cada relación detectada en la frase.
                 for e1, e2 in combinations(sorted(entidades), 2):
                     for relacion, negada in relaciones:
                         filas_salida.append({
@@ -497,7 +458,7 @@ def main():
                             "frase_evidencia": frase,
                         })
  
-        print(f"  [{i:3d}/{len(corpus)}] doc {doc_id} — {n_frases_doc} frases "
+        print(f"  [{i:3d}/{len(corpus)}] doc {doc_id} - {n_frases_doc} frases "
               f"({len(segmentos)} segmento{'s' if len(segmentos) != 1 else ''})", flush=True)
  
     n_negadas = sum(1 for f in filas_salida if f["negada"])

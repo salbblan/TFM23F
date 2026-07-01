@@ -1,9 +1,9 @@
 """
-3_ValidarDatos.py — Aplica fusiones de personas APROBADAS MANUALMENTE
+3_ValidarDatos.py - Aplica fusiones de personas aprobadas manualmente
 ─────────────────────────────────────────────────────────────────────
-Entrada : data/rtve_23f_corpus_clean.json              (de 01_LimpiezaDatos.py)
+Entrada : data/rtve_23f_corpus_clean.json              (de 1_LimpiezaDatos.py)
           data/entity_merge_candidates_revisado.csv      (revisado por el usuario)
-          data/overrides_manuales.json                   (opcional — entidades
+          data/overrides_manuales.json                   (opcional - entidades
                                                             que RTVE no etiquetó,
                                                             añadidas a mano)
 Salida  : data/rtve_23f_corpus_final.json               (listo para el resto del pipeline)
@@ -19,18 +19,18 @@ Entidades faltantes (overrides_manuales.json):
     también en el proceso de Union-Find si coinciden con algo del CSV.
     (Los campos 'alias'/'secciones' del mismo archivo, para resolver términos
     ambiguos como "A" o "Capitán" dentro de un texto concreto, los consume
-    5_ExtraerRelaciones.py más adelante — no son responsabilidad de este script).
+    5_ExtraerRelaciones.py más adelante ).
  
     Se usa Union-Find (componentes conexas): porque agrupa TODAS las filas
     aprobadas en clústeres, sin importar el orden en que aparezcan en el CSV,
-    y dentro de cada clúster elige como nombre canónico el MÁS FRECUENTE en el
-    corpus real (no necesariamente nombre_a) — así el resultado no depende de
+    y dentro de cada clúster elige como nombre canónico el más frecuente en el
+    corpus real (no necesariamente nombre_a), así el resultado no depende de
     qué columna se puso primero al escribir el CSV.
  
 Uso:
-    python scripts/03_ValidarDatos.py
-    python scripts/03_ValidarDatos.py --approved data/entity_merge_candidates_revisado.csv
-    python scripts/03_ValidarDatos.py --canonical-strategy mas_largo
+    python scripts/3_ValidarDatos.py
+    python scripts/3_ValidarDatos.py --approved data/entity_merge_candidates_revisado.csv
+    python scripts/3_ValidarDatos.py --canonical-strategy mas_largo
 """
  
 import argparse
@@ -48,11 +48,10 @@ DEFAULT_CANONICAL_MAP = Path(__file__).resolve().parent.parent / "data" / "entit
 DECISIONES_APROBADAS = {"si", "sí", "yes", "y"}
  
  
-# ── Union-Find ────────────────────────────────────────────────────────────────
+# Union-Find
  
 class UnionFind:
-    """Estructura de conjuntos disjuntos para agrupar nombres fusionados
-    sin que el resultado dependa del orden de las filas del CSV."""
+    """Estructura de conjuntos disjuntos para agrupar nombres fusionados sin que el resultado dependa del orden de las filas del CSV."""
  
     def __init__(self):
         self.parent: dict[str, str] = {}
@@ -62,7 +61,7 @@ class UnionFind:
         raiz = x
         while self.parent[raiz] != raiz:
             raiz = self.parent[raiz]
-        # compresión de camino (path compression) para eficiencia
+        # compresión de camino 
         while self.parent[x] != raiz:
             self.parent[x], x = raiz, self.parent[x]
         return raiz
@@ -79,7 +78,7 @@ class UnionFind:
         return out
  
  
-# ── Construcción del mapeo canónico ──────────────────────────────────────────
+# Construcción del mapeo canónico
  
 def construir_mapeo_canonico(
     csv_path: Path,
@@ -87,17 +86,12 @@ def construir_mapeo_canonico(
     canonical_strategy: str,
 ) -> dict[str, str]:
     """
-    Agrupa con Union-Find todos los pares aprobados ('si') y devuelve un
-    diccionario {variante: nombre_canonico} para TODAS las variantes de
-    cada clúster con más de un miembro.
+    Agrupa con Union-Find todos los pares aprobados ('si') y devuelve un diccionario {variante: nombre_canonico} para TODAS las variantes de cada clúster con más de un miembro.
  
     canonical_strategy:
-        'mas_frecuente' (por defecto) -> el nombre que más veces aparece
-                                          literalmente en el corpus real.
-        'mas_largo'                   -> el nombre más largo del clúster
-                                          (suele ser el más completo/formal).
-        'nombre_a_primera_fila'       -> comportamiento equivalente al
-                                          script anterior, por compatibilidad.
+        'mas_frecuente' (por defecto) - el nombre que más veces aparece literalmente en el corpus real.
+        'mas_largo'                   - el nombre más largo del clúster (suele ser el más completo/formal).
+        'nombre_a_primera_fila'       - comportamiento equivalente al script anterior, por compatibilidad.
     """
     with open(csv_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -142,20 +136,18 @@ def construir_mapeo_canonico(
     return mapeo
  
  
-# ── Entidades faltantes (revisión manual humana) ─────────────────────────────
+# Entidades faltantes revisión manual.
  
 def cargar_overrides_manuales(path: Path) -> dict:
     """
-    Carga overrides_manuales.json (revisión manual humana). Solo se usa aquí
-    el campo 'entidades_faltantes' de cada documento — personas que RTVE
+    Carga overrides_manuales.json (revisión manual humana). Solo se usa aquí el campo 'entidades_faltantes' de cada documento - personas que RTVE
     nunca etiquetó automáticamente y que se añaden a mano:
         { "id_documento": { "entidades_faltantes": ["Teniente Ochando", ...] } }
-    (los campos 'alias'/'secciones', para resolver términos ambiguos como
-    "A"/"Capitán" dentro del texto, los consume 5_ExtraerRelaciones.py).
+    (los campos 'alias'/'secciones', para resolver términos ambiguos como  "A"/"Capitán" dentro del texto, los consume 5_ExtraerRelaciones.py).
     Si el archivo no existe, devuelve {} sin afectar al resto del script.
     """
     if not path.exists():
-        print(f"(Aviso: no se encontró {path} — no se añade ninguna entidad manual)")
+        print(f"(Aviso: no se encontró {path} - no se añade ninguna entidad manual)")
         return {}
     with open(path, encoding="utf-8") as f:
         return json.load(f)
@@ -163,9 +155,7 @@ def cargar_overrides_manuales(path: Path) -> dict:
  
 def aplicar_entidades_faltantes(docs: list, overrides_manuales: dict) -> int:
     """
-    Añade al campo 'personas' de cada documento las entidades que la revisión
-    manual identificó como FALTANTES (RTVE nunca las etiquetó). Modifica
-    'docs' in-place. Devuelve cuántas entidades se añadieron en total.
+    Añade al campo 'personas' de cada documento las entidades que la revisión manual identificó como FALTANTES (RTVE nunca las etiquetó). Modifica 'docs' in-place. Devuelve cuántas entidades se añadieron en total.
     """
     añadidas = 0
     for doc in docs:
@@ -185,11 +175,11 @@ def aplicar_entidades_faltantes(docs: list, overrides_manuales: dict) -> int:
     return añadidas
  
  
-# ── Programa principal ───────────────────────────────────────────────────────
+# Programa principa
  
 def main():
     parser = argparse.ArgumentParser(
-        description="Aplica fusiones de personas aprobadas (versión robusta con Union-Find)"
+        description="Aplica fusiones de personas aprobadas"
     )
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--approved", type=Path, default=DEFAULT_APPROVED)
@@ -205,7 +195,7 @@ def main():
     args = parser.parse_args()
  
     if not args.input.exists():
-        raise SystemExit(f"No se encontró: {args.input} — ejecuta antes 1_LimpiezaDatos.py")
+        raise SystemExit(f"No se encontró: {args.input} - ejecuta antes 1_LimpiezaDatos.py")
     if not args.approved.exists():
         raise SystemExit(f"No se encontró: {args.approved}")
  
@@ -242,7 +232,7 @@ def main():
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump(docs, f, ensure_ascii=False, indent=2)
  
-    print(f"{'─' * 50}")
+    
     print(f"Entidades faltantes añadidas manualmente : {n_faltantes}")
     print(f"Variantes mapeadas a un canónico : {len(mapeo)}")
     print(f"Clústeres (entidades únicas)     : {n_clusters}")
@@ -251,7 +241,7 @@ def main():
     print(f"Mapeo canónico guardado en      : {args.canonical_map_output}")
  
     if not mapeo:
-        print("\n No se aplicó ninguna fusión — revisa que hayas escrito 'si'")
+        print("\n No se aplicó ninguna fusión - revisa que hayas escrito 'si'")
         print("   en la columna 'aprobar_fusion(si/no)' del CSV.")
  
  
